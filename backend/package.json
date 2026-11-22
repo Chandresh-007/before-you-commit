@@ -1,0 +1,19 @@
+{
+  "name": "before-you-commit-backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "esbuild src/handler.ts --bundle --platform=node --target=node20 --format=esm --outfile=dist/index.mjs --external:@aws-sdk/*"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.758.0",
+    "@aws-sdk/lib-dynamodb": "^3.758.0"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.147",
+    "@types/node": "^24.19.2",
+    "esbuild": "^0.25.0",
+    "typescript": "~7.0.2"
+  }
+}

@@ -1,0 +1,185 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Before You Commit - Database Change Review Workspace & Replay 
+  Service
+Globals:
+  Function:
+    Timeout: 5
+    MemorySize: 256
+    Runtime: nodejs20.x
+Resources:
+  ReplaysTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: before-you-commit-replays
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+      - AttributeName: id
+        AttributeType: S
+      KeySchema:
+      - AttributeName: id
+        KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      Tags:
+      - Key: Project
+        Value: BeforeYouCommit
+  HttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      CorsConfiguration:
+        AllowOrigins:
+        - '*'
+        AllowMethods:
+        - GET
+        - POST
+        - OPTIONS
+        AllowHeaders:
+        - Content-Type
+        - Authorization
+        MaxAge: 3600
+      DefaultRouteSettings:
+        ThrottlingBurstLimit: 50
+        ThrottlingRateLimit: 20
+  ReplaysFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: 
+        s3://before-you-commit-artifacts-135100771834-ap-south-1/4feba05343c8d90b099de182933c20bb
+      Handler: index.handler
+      Environment:
+        Variables:
+          TABLE_NAME:
+            Ref: ReplaysTable
+      Policies:
+      - Statement:
+        - Effect: Allow
+          Action:
+          - dynamodb:GetItem
+          - dynamodb:PutItem
+          Resource:
+            Fn::GetAtt:
+            - ReplaysTable
+            - Arn
+      Events:
+        PostReplays:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: HttpApi
+            Path: /replays
+            Method: POST
+        GetReplayById:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: HttpApi
+            Path: /replays/{id}
+            Method: GET
+        HealthCheck:
+          Type: HttpApi
+          Properties:
+            ApiId:
+              Ref: HttpApi
+            Path: /health
+            Method: GET
+  FrontendBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName:
+        Fn::Sub: before-you-commit-app-${AWS::AccountId}-${AWS::Region}
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+  CloudFrontOAC:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name:
+          Fn::Sub: OAC-BeforeYouCommit-${AWS::AccountId}
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+  FrontendDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: Before You Commit Frontend CDN
+        DefaultRootObject: index.html
+        Origins:
+        - Id: S3Origin
+          DomainName:
+            Fn::GetAtt:
+            - FrontendBucket
+            - RegionalDomainName
+          OriginAccessControlId:
+            Fn::GetAtt:
+            - CloudFrontOAC
+            - Id
+          S3OriginConfig:
+            OriginAccessIdentity: ''
+        DefaultCacheBehavior:
+          TargetOriginId: S3Origin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods:
+          - GET
+          - HEAD
+          - OPTIONS
+          CachedMethods:
+          - GET
+          - HEAD
+          Compress: true
+          ForwardedValues:
+            QueryString: true
+            Cookies:
+              Forward: none
+        CustomErrorResponses:
+        - ErrorCode: 403
+          ResponseCode: 200
+          ResponsePagePath: /index.html
+          ErrorCachingMinTTL: 0
+        - ErrorCode: 404
+          ResponseCode: 200
+          ResponsePagePath: /index.html
+          ErrorCachingMinTTL: 0
+  FrontendBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket:
+        Ref: FrontendBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Sid: AllowCloudFrontServicePrincipalReadOnly
+          Effect: Allow
+          Principal:
+            Service: cloudfront.amazonaws.com
+          Action: s3:GetObject
+          Resource:
+            Fn::Sub: ${FrontendBucket.Arn}/*
+          Condition:
+            StringEquals:
+              AWS:SourceArn:
+                Fn::Sub: 
+                  arn:aws:cloudfront::${AWS::AccountId}:distribution/${FrontendDistribution}
+Outputs:
+  HttpApiUrl:
+    Description: API Gateway HTTP API Endpoint URL
+    Value:
+      Fn::Sub: https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com
+  FrontendUrl:
+    Description: CloudFront HTTPS Distribution URL
+    Value:
+      Fn::Sub: https://${FrontendDistribution.DomainName}
+  FrontendBucketName:
+    Description: S3 Frontend Deployment Bucket Name
+    Value:
+      Ref: FrontendBucket
+  ReplaysTableName:
+    Description: DynamoDB Replays Table
+    Value:
+      Ref: ReplaysTable
