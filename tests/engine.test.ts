@@ -21,7 +21,8 @@ describe('Phase 1 Gate: SQL Change Review Engine', () => {
     expect(report.summary.unintendedCount).toBe(0);
     expect(report.summary.missedCount).toBe(0);
     expect(report.summary.wrongValueCount).toBe(0);
-    expect(report.summary.headline).toContain('1 registration changed · Ticket satisfied');
+    expect(report.summary.headline).toBe('Passed on starter data');
+    expect(report.summary.details).toContain('Meets initial ticket scope');
 
     const reg104 = report.rows.find((r) => r.registration_id === 104);
     expect(reg104).toBeDefined();
@@ -74,7 +75,8 @@ describe('Phase 1 Gate: SQL Change Review Engine', () => {
     expect(report.summary.totalChanged).toBe(1);
     expect(report.summary.intendedCount).toBe(1);
     expect(report.summary.unintendedCount).toBe(0);
-    expect(report.summary.headline).toBe('1 registration changed · Ticket satisfied');
+    expect(report.summary.headline).toBe('Passed on these test cases');
+    expect(report.summary.details).toContain('1 registration changed');
 
     // Row 104 is cancelled (intended)
     const reg104 = report.rows.find((r) => r.registration_id === 104);
@@ -158,5 +160,62 @@ describe('Phase 1 Gate: SQL Change Review Engine', () => {
     const multiColSql = `UPDATE registrations SET status = 'cancelled', event_name = 'Hackathon' WHERE registration_id = 104;`;
     expect(validateStudentSql(multiColSql).isValid).toBe(false);
     expect(validateStudentSql(multiColSql).error).toContain('Only the "status" column is editable');
+  });
+
+  describe('Banner UX Regression Checks for Classroom Pilot', () => {
+    it('accurately distinguishes all five result banner states', async () => {
+      // 1. Starter dataset pass -> "Passed on starter data"
+      const starterPass = await executeScenarioPreview({
+        scenario,
+        reviewerRows: [],
+        sql: scenario.starterSql,
+      });
+      expect(starterPass.summary.isPass).toBe(true);
+      expect(starterPass.summary.headline).toBe('Passed on starter data');
+      expect(starterPass.summary.totalChanged).toBe(1);
+
+      // 2. Reviewer row triggers regression -> "2 registrations changed · 1 outside the ticket"
+      const reviewerRegression = await executeScenarioPreview({
+        scenario,
+        reviewerRows: [scenario.reviewerDefaultPreset],
+        sql: scenario.starterSql,
+      });
+      expect(reviewerRegression.summary.isPass).toBe(false);
+      expect(reviewerRegression.summary.headline).toBe('2 registrations changed · 1 outside the ticket');
+      expect(reviewerRegression.summary.totalChanged).toBe(2);
+      expect(reviewerRegression.summary.unintendedCount).toBe(1);
+      expect(reviewerRegression.summary.details).toContain('#87');
+      expect(reviewerRegression.summary.details).toContain('Ananya Sharma');
+
+      // 3. Solution passes with reviewer rows -> "Passed on these test cases"
+      const reviewerPass = await executeScenarioPreview({
+        scenario,
+        reviewerRows: [scenario.reviewerDefaultPreset],
+        sql: scenario.solutionSql,
+      });
+      expect(reviewerPass.summary.isPass).toBe(true);
+      expect(reviewerPass.summary.headline).toBe('Passed on these test cases');
+      expect(reviewerPass.summary.totalChanged).toBe(1);
+      expect(reviewerPass.summary.details).toContain('1 registration changed');
+
+      // 4. Missing target on starter data -> fails with 0 changed
+      const missedStarter = await executeScenarioPreview({
+        scenario,
+        reviewerRows: [],
+        sql: `UPDATE registrations SET status = 'cancelled' WHERE student_id = 'STU-NONEXISTENT';`,
+      });
+      expect(missedStarter.summary.isPass).toBe(false);
+      expect(missedStarter.summary.headline).toBe('0 registrations changed · Ticket requirements not met');
+      expect(missedStarter.summary.totalChanged).toBe(0);
+
+      // 5. Wrong status on starter data -> fails with wrong status headline
+      const wrongStatusStarter = await executeScenarioPreview({
+        scenario,
+        reviewerRows: [],
+        sql: `UPDATE registrations SET status = 'pending' WHERE registration_id = 104;`,
+      });
+      expect(wrongStatusStarter.summary.isPass).toBe(false);
+      expect(wrongStatusStarter.summary.headline).toBe('1 registration changed with unexpected status');
+    });
   });
 });

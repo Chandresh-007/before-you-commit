@@ -1,7 +1,8 @@
-export type RegistrationStatus = 'registered' | 'completed' | 'waitlist' | 'cancelled' | string;
+export type RegistrationStatus = 'registered' | 'completed' | 'waitlist' | 'cancelled' | 'scheduled' | 'confirmed' | string;
 
 export interface Registration {
   registration_id: number;
+  reviewerSource?: 'custom' | 'supplied';
   student_id: string;
   student_name: string;
   event_name: string;
@@ -44,23 +45,41 @@ export interface DiffReport {
   executionTimeMs: number;
 }
 
+export interface ReviewerExercise {
+  id: string; // e.g. 'student-scope' | 'session-scope' | 'default'
+  name: string;
+  description: string;
+  scopeGuardDescription: string;
+  starterSql: string;
+  solutionSql: string;
+  reviewerDefaultPreset: Registration;
+  lessonExplanation: string;
+}
+
 export interface Scenario {
   id: string;
   version: string;
   title: string;
+  subtitle: string;
   ticketId: string;
   ticketDescription: string;
   targetCriteriaDescription: string;
   targetRegistrationId: number;
   targetExpectedStatus: string;
   initialSeedRows: Registration[];
-  reviewerDefaultPreset: Registration;
-  starterSql: string;
-  solutionSql: string;
+  authoringType: 'hand-authored' | 'bedrock-assisted';
+  exercises?: ReviewerExercise[];
+  // Backwards compatibility for single-exercise scenarios like Cloud Quest:
+  reviewerDefaultPreset?: Registration;
+  starterSql?: string;
+  solutionSql?: string;
+  lessonExplanation?: string;
 }
 
 export interface ReplayRecipe {
+  scenarioId?: string;
   scenarioVersion: string;
+  exerciseId?: string;
   reviewerRows: Registration[];
   sql: string;
   createdAt?: string;

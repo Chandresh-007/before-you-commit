@@ -6,11 +6,13 @@
   "scripts": {
     "dev": "node scripts/copy-wasm.js && vite",
     "build": "tsc -b && vite build && node scripts/copy-wasm.js",
-    "test": "vitest run",
-    "lint": "oxlint",
+    "test": "vitest run tests/",
+    "author-challenge": "node scripts/authorChallenge.mjs",
+    "lint": "oxlint -A react/set-state-in-effect src/ tests/ scripts/ backend/src/",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.1175.0",
     "@aws-sdk/client-dynamodb": "^3.1175.0",
     "@aws-sdk/lib-dynamodb": "^3.1175.0",
     "lucide-react": "^1.77.0",

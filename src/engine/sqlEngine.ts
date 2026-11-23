@@ -9,24 +9,14 @@ let sqlJsModule: SqlJsStatic | null = null;
 export async function getSqlJs(locateFileUrl?: string): Promise<SqlJsStatic> {
   if (!sqlJsModule) {
     const isNode = typeof window === 'undefined' && typeof process !== 'undefined';
-    let nodeWasmDir: string | undefined;
-
-    if (isNode) {
-      try {
-        const { resolve } = await import('node:path');
-        nodeWasmDir = resolve(process.cwd(), 'public');
-      } catch {
-        // Fallback for non-node environments
-      }
-    }
 
     sqlJsModule = await initSqlJs({
       locateFile: (file: string) => {
         if (locateFileUrl) {
           return `${locateFileUrl}/${file}`;
         }
-        if (nodeWasmDir) {
-          return `${nodeWasmDir}/${file}`;
+        if (isNode) {
+          return `./public/${file}`;
         }
         return `/${file}`;
       },

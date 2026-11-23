@@ -1,0 +1,44 @@
+{
+  "sqlBypass": {
+    "validation": {
+      "isValid": true,
+      "sanitizedSql": "UPDATE registrations SET status = CASE WHEN 'WHERE'='WHERE' THEN 'cancelled' END, student_name='Changed outside permitted column' WHERE registration_id=204"
+    },
+    "pass": true,
+    "beforeName": "Aarav Patel",
+    "afterName": "Changed outside permitted column",
+    "changedColumns": [
+      "status"
+    ]
+  },
+  "literalRewritten": {
+    "input": "UPDATE registrations SET status='can/*comment*/celled' WHERE registration_id=204;",
+    "sanitized": "UPDATE registrations SET status='cancelled' WHERE registration_id=204",
+    "pass": true,
+    "actual": "cancelled"
+  },
+  "seedOverwrite": {
+    "pass": true,
+    "targetBefore": {
+      "registration_id": 204,
+      "student_id": "STU-404",
+      "student_name": "Replacement Student",
+      "event_name": "Amazon Interview",
+      "session_date": "2024-11-25 10:00",
+      "status": "scheduled"
+    }
+  },
+  "unknownExercise": "student-scope",
+  "missingVersion": "1.1.0",
+  "authorMissingDraft": {
+    "exitCode": 0,
+    "existingVersionOverwritten": true,
+    "stdout": "======================================================================\n  BEFORE YOU COMMIT — INSTRUCTOR AUTHORING TOOL\n======================================================================\nSetting:       Campus Tech Placement Drive 2024\nExercise:      student-scope\nAWS Region:    ap-south-1\nBedrock Model: apac.amazon.nova-micro-v1:0\nMode:          APPROVE & PUBLISH\nDraft Source:  definitely-not-a-real-draft\n----------------------------------------------------------------------\n\n🔒 RUNNING IN APPROVAL MODE: Consuming reviewed draft (Bedrock is NOT contacted).\n\n[Local Draft Loader] Resolving draft for \"definitely-not-a-real-draft\"...\n✓ Loaded draft: D:\\Mini Project\\artifacts\\review-audit\\author-fixture\\.drafts\\reviewed.json\n  Draft SHA-256: 93d154470291ec4292e0f2c43bc50d45437900e76fbf716f4b2b6a213c153b6b\n\n[3/4] Running in-memory SQLite Playability Gate...\n  ✓ Check 1 (Seed Pass): Starter query modifies exactly target row #204.\n  ✓ Check 2 (Reviewer Trap): Reviewer row #188 is caught in unintended modification.\n  ✓ Check 3 (Solution Pass): Solution query cancels #204 and preserves row #188 and all controls.\n✓ In-Memory SQLite Playability Gate PASSED flawlessly.\n\n[4/4] Publishing approved scenario immutably to scenario bank...\n✓ Saved scenario file: D:\\Mini Project\\artifacts\\review-audit\\author-fixture\\src\\scenarios\\generated\\scenario-bedrock-student-scope-mwrs6sns.ts\n✓ Integrity Check: Approved scenario matches reviewed draft character-for-character.\n  Verified SHA-256: 93d154470291ec4292e0f2c43bc50d45437900e76fbf716f4b2b6a213c153b6b\n✓ Registered scenario in SCENARIO_BANK in src/scenarios/index.ts\n\n======================================================================\n  🎉 SCENARIO SUCCESSFULLY APPROVED AND PUBLISHED!\n======================================================================\nScenario ID:      scenario-bedrock-student-scope-mwrs6sns\nScenario Version: 1.1.0\nTitle:            Cancel Aarav Patel’s Amazon Interview Booking\nTicket ID:        PLC-204-CANCEL\nTarget:           #204 (Aarav Patel) -> cancelled\nBedrock Contact:  NONE (0 network calls; approval executed 100% offline).\nApp URL:          http://localhost:5173/?scenario=scenario-bedrock-student-scope-mwrs6sns\n======================================================================\n",
+    "stderr": ""
+  },
+  "authorFailedIntegrity": {
+    "exitCode": 1,
+    "destinationChanged": true,
+    "stderr": "\n❌ Authoring Error: Error: Integrity Check Failed: Published scenario SHA-256 (93d154470291ec4292e0f2c43bc50d45437900e76fbf716f4b2b6a213c153b6b) does not match draft (221c3eb312e6365a6d7a0b2fbefc1fa20210e084d3fbd923fbb84d99abe8cf12).\n    at publishScenario (file:///D:/Mini%20Project/artifacts/review-audit/author-fixture/scripts/authorChallenge.mjs:408:11)\n    at main (file:///D:/Mini%20Project/artifacts/review-audit/author-fixture/scripts/authorChallenge.mjs:460:7)\n"
+  }
+}

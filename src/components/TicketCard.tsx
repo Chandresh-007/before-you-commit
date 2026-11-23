@@ -1,101 +1,116 @@
 import React from 'react';
-import { Ticket, Target, AlertCircle, User, ShieldAlert } from 'lucide-react';
-import type { Scenario } from '../types';
+import { Ticket, Target, Shield } from 'lucide-react';
+import type { ReviewerExercise, Scenario } from '../types';
+import { bookingTime } from './bookingDisplay';
 
 interface TicketCardProps {
   scenario: Scenario;
+  currentExercise?: ReviewerExercise;
   activeRole: 'developer' | 'reviewer';
   onRoleChange: (role: 'developer' | 'reviewer') => void;
 }
 
 export const TicketCard: React.FC<TicketCardProps> = ({
   scenario,
+  currentExercise,
   activeRole,
   onRoleChange,
 }) => {
+  const targetRow = scenario.initialSeedRows.find(
+    (r) => r.registration_id === scenario.targetRegistrationId
+  );
+
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-lg">
-      {/* Role Switcher Tab */}
-      <div className="flex border-b border-slate-800 bg-slate-950/60 p-1">
+    <div className="bg-surface border border-border rounded-xl overflow-hidden shadow-xs">
+      {/* Role Tabs */}
+      <div className="flex border-b border-border">
         <button
           type="button"
+          aria-pressed={activeRole === 'developer'}
           onClick={() => onRoleChange('developer')}
-          className={`flex-1 py-2 px-3 text-xs font-semibold rounded-lg flex items-center justify-center gap-2 transition-all cursor-pointer ${
+          className={`flex-1 py-2 px-3 text-xs sm:text-sm font-semibold transition-colors cursor-pointer text-center ${
             activeRole === 'developer'
-              ? 'bg-indigo-600/20 text-indigo-300 border border-indigo-500/40 shadow'
-              : 'text-slate-400 hover:text-slate-200'
+              ? 'text-teal-800 border-b-2 border-teal-600 bg-teal-50/70'
+              : 'text-ink-muted hover:text-ink-secondary hover:bg-surface-alt'
           }`}
         >
-          <User className="w-3.5 h-3.5" />
-          <span>Developer Role (Writes SQL)</span>
+          Developer (SQL Editor)
         </button>
         <button
           type="button"
+          aria-pressed={activeRole === 'reviewer'}
           onClick={() => onRoleChange('reviewer')}
-          className={`flex-1 py-2 px-3 text-xs font-semibold rounded-lg flex items-center justify-center gap-2 transition-all cursor-pointer ${
+          className={`flex-1 py-2 px-3 text-xs sm:text-sm font-semibold transition-colors cursor-pointer text-center ${
             activeRole === 'reviewer'
-              ? 'bg-amber-600/20 text-amber-300 border border-amber-500/40 shadow'
-              : 'text-slate-400 hover:text-slate-200'
+              ? 'text-teal-800 border-b-2 border-teal-600 bg-teal-50/70'
+              : 'text-ink-muted hover:text-ink-secondary hover:bg-surface-alt'
           }`}
         >
-          <ShieldAlert className="w-3.5 h-3.5" />
-          <span>Reviewer Role (Adds Edge Cases)</span>
+          Reviewer (Edge Cases)
         </button>
       </div>
 
-      <div className="p-4 sm:p-5 space-y-3">
-        {/* Ticket Header */}
-        <div className="flex items-center justify-between text-xs">
-          <span className="flex items-center gap-1.5 font-mono font-bold text-indigo-400 bg-indigo-950/60 border border-indigo-800 px-2 py-0.5 rounded">
-            <Ticket className="w-3 h-3" /> {scenario.ticketId}
+      <div className="p-4 space-y-3">
+        {/* Ticket ID + Subtitle */}
+        <div className="flex flex-wrap gap-2 items-center justify-between">
+          <span className="inline-flex items-center gap-1.5 font-mono text-xs font-bold text-teal-800 bg-teal-50 border border-teal-200 px-2 py-0.5 rounded">
+            <Ticket className="w-3.5 h-3.5" /> {scenario.ticketId}
           </span>
-          <span className="text-slate-400 font-medium">Cloud Quest Registration Portal</span>
+          <span className="text-xs font-medium text-ink-muted">{scenario.subtitle}</span>
         </div>
 
-        {/* Change Request Title */}
-        <div className="space-y-1">
-          <h2 className="text-base sm:text-lg font-bold text-white tracking-tight m-0">
-            {scenario.ticketDescription}
-          </h2>
-        </div>
+        {/* Change Request Headline */}
+        <h2 className="text-base sm:text-lg font-bold text-ink leading-snug m-0">
+          {scenario.ticketDescription}
+        </h2>
 
-        {/* Acceptance Scope Criteria */}
-        <div className="bg-slate-950/80 border border-slate-800/90 rounded-lg p-3 space-y-2">
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-300">
-            <Target className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Acceptance Criteria & Scope Guard</span>
-          </div>
-          <ul className="text-xs text-slate-400 space-y-1.5 list-disc pl-4">
-            <li>
-              <span className="text-slate-200 font-semibold">Target Record:</span> Registration{' '}
-              <code className="text-emerald-400 bg-emerald-950/40 px-1 py-0.2 rounded border border-emerald-900/60 font-mono">
-                #104
-              </code>{' '}
-              (Ananya Sharma, November Cloud Quest) status must transition to{' '}
-              <code className="text-amber-300 font-mono">cancelled</code>.
-            </li>
-            <li>
-              <span className="text-slate-200 font-semibold">Preservation Rule:</span> Any past or concurrent
-              registrations (e.g. October sessions) must{' '}
-              <span className="text-rose-400 font-semibold underline decoration-rose-500/50">NOT</span> be modified.
-            </li>
-          </ul>
-        </div>
-
-        {/* Interactive Notice */}
-        <div className="flex items-start gap-2 text-xs text-slate-400 bg-slate-800/40 p-2.5 rounded-lg border border-slate-800">
-          <AlertCircle className="w-4 h-4 text-indigo-400 flex-shrink-0 mt-0.5" />
-          <p className="m-0 leading-relaxed">
-            {activeRole === 'developer' ? (
-              <>
-                <strong className="text-slate-200">Developer Guidance:</strong> Inspect the query below. It works on the starter table, but is it scoped tightly enough to survive reviewer scrutiny?
-              </>
-            ) : (
-              <>
-                <strong className="text-slate-200">Reviewer Guidance:</strong> Use the right-hand panel to add an edge case row (such as Ananya's prior attendance) and see if the query breaks!
-              </>
+        {/* Structured Target & Preservation Scope */}
+        <div className="bg-surface-alt border border-border rounded-lg p-3 space-y-2 text-xs">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5 font-semibold text-ink-secondary">
+              <Target className="w-3.5 h-3.5 text-teal-600" />
+              <span>Target Booking</span>
+            </div>
+            {targetRow && (
+              <span className="font-mono text-[11px] text-ink-muted">
+                {targetRow.student_id}
+              </span>
             )}
-          </p>
+          </div>
+
+          {targetRow ? (
+            <div className="bg-canvas border border-border rounded p-2 space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-ink">{targetRow.student_name}</span>
+                <span className="font-mono font-bold text-teal-800 bg-teal-50 px-1 rounded border border-teal-100">
+                  #{targetRow.registration_id}
+                </span>
+              </div>
+              <div className="text-ink-secondary text-[11px]">
+                <strong>{targetRow.event_name}</strong> · {bookingTime(targetRow.session_date)}
+              </div>
+              <div className="text-[11px] font-medium text-ink pt-0.5">
+                Transition:{' '}
+                <span className="font-mono text-ink-muted">{targetRow.status}</span>{' '}
+                <span className="text-teal-700">→</span>{' '}
+                <span className="font-mono font-bold text-teal-800">{scenario.targetExpectedStatus}</span>
+              </div>
+            </div>
+          ) : (
+            <div className="font-mono">
+              #{scenario.targetRegistrationId} → {scenario.targetExpectedStatus}
+            </div>
+          )}
+
+          <div className="pt-1 border-t border-border/60">
+            <div className="flex items-start gap-1.5 text-ink-secondary">
+              <Shield className="w-3.5 h-3.5 text-teal-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <span className="font-semibold text-ink">Must Preserve: </span>
+                <span>{currentExercise?.scopeGuardDescription || scenario.targetCriteriaDescription}</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

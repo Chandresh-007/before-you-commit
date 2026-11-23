@@ -4,11 +4,13 @@ export const CLOUD_QUEST_SCENARIO: Scenario = {
   id: 'scenario-cloud-quest-ananya',
   version: '1.0.0',
   title: 'Cancel Ananya’s November Cloud Quest Registration',
+  subtitle: 'Cloud Quest Registration Portal',
   ticketId: 'REG-104-CANCEL',
   ticketDescription: 'Cancel Ananya’s November Cloud Quest registration. Preserve her previous attendance.',
   targetCriteriaDescription: 'Registration #104 (Ananya Sharma, 2024-11-15 Cloud Quest) must have status updated to "cancelled". All other registrations must remain unaffected.',
   targetRegistrationId: 104,
   targetExpectedStatus: 'cancelled',
+  authoringType: 'hand-authored',
   initialSeedRows: [
     {
       registration_id: 101,
@@ -69,4 +71,24 @@ WHERE student_id = 'STU-402';`,
 UPDATE registrations
 SET status = 'cancelled'
 WHERE registration_id = 104;`,
+  lessonExplanation: `The query used WHERE student_id = 'STU-402'. In relational database design, student_id is a domain identifier, not the primary key of this table. Because Ananya has multiple registrations across different dates, updating by student ID unconditionally overwrote her completed October record (#87). To make SQL safe against regressions, target the candidate primary key registration_id = 104.`,
+  exercises: [
+    {
+      id: 'default',
+      name: 'Standard Review (Past Attendance Preservation)',
+      description: 'Preserve Ananya’s completed October attendance when cancelling her November slot.',
+      scopeGuardDescription: 'Any past or concurrent registrations (e.g. October sessions) must NOT be modified.',
+      starterSql: `UPDATE registrations\nSET status = 'cancelled'\nWHERE student_id = 'STU-402';`,
+      solutionSql: `UPDATE registrations\nSET status = 'cancelled'\nWHERE registration_id = 104;`,
+      reviewerDefaultPreset: {
+        registration_id: 87,
+        student_id: 'STU-402',
+        student_name: 'Ananya Sharma',
+        event_name: 'Cloud Quest',
+        session_date: '2024-10-18',
+        status: 'completed',
+      },
+      lessonExplanation: `Targeting WHERE registration_id = 104 adheres to defensive SQL principles. It guarantees exact single-row granularity, preventing side-effects on prior or future student activity.`,
+    },
+  ],
 };

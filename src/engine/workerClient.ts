@@ -55,10 +55,14 @@ class SqlWorkerManager {
 
   public restartWorker(): void {
     if (this.worker) {
-      this.worker.terminate();
+      try {
+        this.worker.terminate();
+      } catch {
+        // Ignore termination errors
+      }
       this.worker = null;
     }
-    // Reject any pending requests
+    // Reject any pending requests with clear recovery notice
     for (const [id, pending] of this.pendingRequests.entries()) {
       clearTimeout(pending.timer);
       pending.reject(new Error('SQL worker terminated or timed out. State has been reset cleanly.'));
@@ -104,7 +108,21 @@ class SqlWorkerManager {
         reviewerRows,
       };
 
-      worker.postMessage(request);
+      try {
+        worker.postMessage(request);
+      } catch {
+        clearTimeout(timer);
+        this.pendingRequests.delete(requestId);
+        this.restartWorker();
+        // Fall back to main thread execution
+        executeScenarioPreview({
+          scenario,
+          reviewerRows,
+          sql,
+        })
+          .then(resolve)
+          .catch(reject);
+      }
     });
   }
 }

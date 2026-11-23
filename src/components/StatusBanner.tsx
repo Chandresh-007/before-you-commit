@@ -1,35 +1,47 @@
 import React from 'react';
-import { CheckCircle2, AlertTriangle, XCircle, Info, Clock, AlertOctagon } from 'lucide-react';
-import type { DiffReport } from '../types';
+import { CheckCircle2, AlertTriangle, Pencil, Plus } from 'lucide-react';
+import type { DiffReport, Scenario } from '../types';
+import { timeOnly } from './bookingDisplay';
+import { explainUnintendedRow } from '../engine/diffEngine';
 
-interface StatusBannerProps {
+interface Props {
   report: DiffReport | null;
   error: string | null;
+  scenario: Scenario;
   projectorMode: boolean;
+  reviewerRowsCount?: number;
+  onTestAnotherBooking?: () => void;
+  onEditQuery?: () => void;
+  onStartFresh?: () => void;
+  isStale?: boolean;
 }
 
-export const StatusBanner: React.FC<StatusBannerProps> = ({
+export const StatusBanner: React.FC<Props> = ({
   report,
   error,
-  projectorMode,
+  scenario,
+  reviewerRowsCount = 0,
+  onTestAnotherBooking,
+  onEditQuery,
+  onStartFresh,
+  isStale,
 }) => {
   if (error) {
     return (
-      <div className="bg-rose-950/70 border-2 border-rose-500 rounded-xl p-4 sm:p-5 text-rose-100 shadow-xl flex items-start gap-3">
-        <XCircle className="w-6 h-6 text-rose-400 flex-shrink-0 mt-0.5" />
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold uppercase tracking-wider bg-rose-900/60 text-rose-300 border border-rose-700 px-2 py-0.5 rounded">
-              SQL Execution / Constraint Error
-            </span>
-          </div>
-          <p
-            className={`font-mono text-rose-200 m-0 ${
-              projectorMode ? 'text-lg font-bold' : 'text-sm font-semibold'
-            }`}
-          >
-            {error}
-          </p>
+      <div className="result-banner result-warning" role="alert">
+        <AlertTriangle className="flex-shrink-0" size={20} />
+        <div>
+          <h3>Preview unavailable</h3>
+          <p className="font-mono text-xs mt-1 text-ink-secondary">{error}</p>
+          {onStartFresh && (
+            <button
+              type="button"
+              onClick={onStartFresh}
+              className="btn secondary text-xs py-1 px-2.5 mt-2.5 flex items-center gap-1.5 cursor-pointer shadow-xs"
+            >
+              <span>Start fresh challenge</span>
+            </button>
+          )}
         </div>
       </div>
     );
@@ -37,102 +49,208 @@ export const StatusBanner: React.FC<StatusBannerProps> = ({
 
   if (!report) {
     return (
-      <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-4 text-slate-400 flex items-center justify-between gap-3 text-xs">
-        <div className="flex items-center gap-2">
-          <Info className="w-4 h-4 text-indigo-400" />
-          <span>
-            Ready to test. Click <strong className="text-slate-200">"Preview Change"</strong> or press{' '}
-            <kbd className="bg-slate-800 border border-slate-700 px-1.5 py-0.5 rounded font-mono text-[11px] text-slate-300">
-              Ctrl+Enter
-            </kbd>{' '}
-            to dry-run in SQLite.
-          </span>
-        </div>
+      <div className="empty-result">
+        <span className="eyebrow">Ready to review</span>
+        <h3>What will this query change?</h3>
+        <p>Preview the SQL to compare the result with the ticket.</p>
       </div>
     );
   }
 
-  const { summary, executionTimeMs } = report;
+  const { summary } = report;
+  const unintended = report.rows.filter((row) => row.classification === 'unintended');
+  const targetSeedRow = scenario.initialSeedRows.find(
+    (r) => r.registration_id === scenario.targetRegistrationId
+  );
+  const targetRowDiff = report.rows.find(
+    (r) => r.registration_id === scenario.targetRegistrationId
+  );
+  const targetRow =
+    targetRowDiff?.before ||
+    targetSeedRow || {
+      registration_id: scenario.targetRegistrationId,
+      student_id: 'UNKNOWN',
+      student_name: 'Target Student',
+      event_name: 'Target Event',
+      session_date: '',
+      status: 'scheduled',
+    };
 
-  // Choose styling based on outcome
-  let bannerClass = 'bg-slate-900 border-slate-700';
-  let badgeClass = 'bg-slate-800 text-slate-300 border-slate-600';
-  let Icon = Info;
+  const isTargetMissed = targetRowDiff?.classification === 'missed';
+  const isTargetWrongValue = targetRowDiff?.classification === 'wrong_value';
+  const hasVisualCards = unintended.length > 0 || isTargetMissed || isTargetWrongValue;
 
-  if (summary.unintendedCount > 0) {
-    bannerClass = 'bg-rose-950/80 border-2 border-rose-500 shadow-rose-900/40 shadow-xl';
-    badgeClass = 'bg-rose-900/80 text-rose-200 border-rose-600 font-bold';
-    Icon = AlertOctagon;
-  } else if (summary.isPass) {
-    bannerClass = 'bg-emerald-950/80 border-2 border-emerald-500 shadow-emerald-900/40 shadow-xl';
-    badgeClass = 'bg-emerald-900/80 text-emerald-200 border-emerald-600 font-bold';
-    Icon = CheckCircle2;
-  } else if (summary.wrongValueCount > 0) {
-    bannerClass = 'bg-purple-950/80 border-2 border-purple-500 shadow-purple-900/40 shadow-xl';
-    badgeClass = 'bg-purple-900/80 text-purple-200 border-purple-600 font-bold';
-    Icon = AlertTriangle;
-  } else if (summary.missedCount > 0) {
-    bannerClass = 'bg-amber-950/80 border-2 border-amber-500 shadow-amber-900/40 shadow-xl';
-    badgeClass = 'bg-amber-900/80 text-amber-200 border-amber-600 font-bold';
-    Icon = AlertTriangle;
-  }
+  const bannerClass = isStale
+    ? 'result-warning'
+    : unintended.length > 0
+    ? 'result-danger'
+    : summary.isPass
+    ? 'result-pass'
+    : 'result-warning';
 
   return (
-    <div
-      className={`rounded-xl p-4 sm:p-5 transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 ${bannerClass}`}
-    >
-      <div className="flex items-start sm:items-center gap-3">
-        <div className="p-2 rounded-lg bg-black/30 border border-white/10 flex-shrink-0">
-          <Icon className="w-6 h-6 text-white" />
-        </div>
-        <div className="space-y-1">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className={`text-xs px-2.5 py-0.5 rounded-full border uppercase tracking-wider ${badgeClass}`}>
-              {summary.isPass
-                ? 'VERIFIED PASS'
-                : summary.unintendedCount > 0
-                ? 'CRITICAL REGRESSION'
-                : 'SPEC MISMATCH'}
-            </span>
-            <span className="text-xs text-slate-300/80 font-mono flex items-center gap-1">
-              <Clock className="w-3 h-3" /> {executionTimeMs}ms (in-browser SQLite)
-            </span>
-          </div>
-
-          <h3
-            className={`font-extrabold text-white tracking-tight m-0 ${
-              projectorMode ? 'text-2xl sm:text-3xl' : 'text-lg sm:text-xl'
-            }`}
-          >
-            {summary.headline}
-          </h3>
-
-          <p className="text-xs sm:text-sm text-slate-200/90 m-0 max-w-2xl leading-relaxed">
-            {summary.details}
-          </p>
+    <div className={`result-banner ${bannerClass}`}>
+      <div className="result-heading">
+        {summary.isPass && !isStale ? (
+          <CheckCircle2 className="flex-shrink-0 text-teal-600" size={22} />
+        ) : (
+          <AlertTriangle className="flex-shrink-0" size={22} />
+        )}
+        <div>
+          <span className="eyebrow">
+            {isStale ? 'Query edited · preview again' : 'Preview result'}
+          </span>
+          <h3>{summary.headline}</h3>
         </div>
       </div>
 
-      {/* Metric Pills */}
-      <div className="flex items-center gap-2 self-start md:self-auto flex-wrap font-mono text-xs">
-        <div className="bg-black/40 border border-white/10 px-3 py-1.5 rounded-lg text-center">
-          <div className="text-[10px] text-slate-400 uppercase font-semibold">Changed</div>
-          <div className="text-sm font-bold text-white">{summary.totalChanged}</div>
+      {isStale && (
+        <p className="stale-notice">
+          These results belong to the previous SQL. Preview your edits to update the evidence.
+        </p>
+      )}
+
+      {hasVisualCards ? (
+        <div className="affected-bookings">
+          {unintended.map((row) => {
+            const timeStr = timeOnly(row.before.session_date);
+            const causeExplanation = explainUnintendedRow(row, targetRow, report.sql);
+            return (
+              <div key={row.registration_id} className="affected-card unintended-card">
+                <div className="affected-header">
+                  <span className="record-person">
+                    {row.before.student_name} <span className="record-id">#{row.registration_id}</span>
+                  </span>
+                  <span className="badge badge-outside">Outside the ticket</span>
+                </div>
+                <div className="affected-title">
+                  <strong>
+                    {row.before.student_name} · {row.before.event_name} · {timeStr}
+                  </strong>
+                </div>
+                <div className="status-transition">
+                  <span className="status-tag status-prev">{row.before.status}</span>
+                  <span className="arrow" aria-label="changed to">
+                    →
+                  </span>
+                  <b className="status-tag status-wrong">{row.after.status}</b>
+                </div>
+                <div className="expected-callout">
+                  <span>Expected: stay {row.before.status}</span>
+                </div>
+                <p className="cause-explanation text-xs text-danger font-medium mt-1">
+                  {causeExplanation}
+                </p>
+              </div>
+            );
+          })}
+
+          {targetRowDiff && targetRowDiff.classification === 'intended' && (
+            <div key={targetRowDiff.registration_id} className="affected-card intended-card">
+              <div className="affected-header">
+                <span className="record-person">
+                  {targetRowDiff.before.student_name} <span className="record-id">#{targetRowDiff.registration_id}</span>
+                </span>
+                <span className="badge badge-intended">Requested change</span>
+              </div>
+              <div className="affected-title">
+                <strong>
+                  {targetRowDiff.before.student_name} · {targetRowDiff.before.event_name} · {timeOnly(targetRowDiff.before.session_date)}
+                </strong>
+              </div>
+              <div className="status-transition">
+                <span className="status-tag status-prev">{targetRowDiff.before.status}</span>
+                <span className="arrow" aria-label="changed to">
+                  →
+                </span>
+                <b className="status-tag status-success">{targetRowDiff.after.status}</b>
+              </div>
+              <div className="expected-callout text-ink-muted">
+                <span>Requested change</span>
+              </div>
+            </div>
+          )}
+
+          {isTargetMissed && (
+            <div key={targetRowDiff.registration_id} className="affected-card border border-amber-300 bg-amber-50">
+              <div className="affected-header">
+                <span className="record-person">
+                  {targetRowDiff.before.student_name} <span className="record-id">#{targetRowDiff.registration_id}</span>
+                </span>
+                <span className="badge badge-outside bg-amber-100 text-amber-800 border-amber-300">Target missed</span>
+              </div>
+              <div className="affected-title">
+                <strong>
+                  {targetRowDiff.before.student_name} · {targetRowDiff.before.event_name} · {timeOnly(targetRowDiff.before.session_date)}
+                </strong>
+              </div>
+              <div className="status-transition">
+                <span className="status-tag status-prev">{targetRowDiff.before.status}</span>
+                <span className="text-xs text-ink-muted font-medium ml-1">(stayed unchanged)</span>
+              </div>
+              <div className="expected-callout text-amber-900 font-semibold">
+                <span>Expected: change to {scenario.targetExpectedStatus}</span>
+              </div>
+              <p className="text-xs text-ink-secondary mt-1">
+                The query did not update target registration #{targetRow.registration_id}. Check your WHERE clause.
+              </p>
+            </div>
+          )}
+
+          {isTargetWrongValue && (
+            <div key={targetRowDiff.registration_id} className="affected-card border border-amber-300 bg-amber-50">
+              <div className="affected-header">
+                <span className="record-person">
+                  {targetRowDiff.before.student_name} <span className="record-id">#{targetRowDiff.registration_id}</span>
+                </span>
+                <span className="badge badge-outside bg-amber-100 text-amber-800 border-amber-300">Wrong status</span>
+              </div>
+              <div className="affected-title">
+                <strong>
+                  {targetRowDiff.before.student_name} · {targetRowDiff.before.event_name} · {timeOnly(targetRowDiff.before.session_date)}
+                </strong>
+              </div>
+              <div className="status-transition">
+                <span className="status-tag status-prev">{targetRowDiff.before.status}</span>
+                <span className="arrow" aria-label="changed to">
+                  →
+                </span>
+                <b className="status-tag status-wrong">{targetRowDiff.after.status}</b>
+              </div>
+              <div className="expected-callout text-amber-900 font-semibold">
+                <span>Expected: {scenario.targetExpectedStatus}</span>
+              </div>
+              <p className="text-xs text-ink-secondary mt-1">
+                Target booking #{targetRow.registration_id} changed to "{targetRowDiff.after.status}", but ticket requires "{scenario.targetExpectedStatus}".
+              </p>
+            </div>
+          )}
         </div>
-        <div className="bg-black/40 border border-emerald-500/30 px-3 py-1.5 rounded-lg text-center">
-          <div className="text-[10px] text-emerald-400 uppercase font-semibold">Intended</div>
-          <div className="text-sm font-bold text-emerald-300">{summary.intendedCount}</div>
-        </div>
-        <div
-          className={`border px-3 py-1.5 rounded-lg text-center ${
-            summary.unintendedCount > 0
-              ? 'bg-rose-950 border-rose-500 text-rose-300'
-              : 'bg-black/40 border-white/10 text-slate-400'
-          }`}
-        >
-          <div className="text-[10px] uppercase font-semibold">Unintended</div>
-          <div className="text-sm font-bold">{summary.unintendedCount}</div>
-        </div>
+      ) : (
+        <p className="summary-sentence">
+          {summary.isPass
+            ? `${summary.totalChanged} registration changed. ${
+                reviewerRowsCount > 0
+                  ? 'All test cases and added bookings were preserved.'
+                  : 'This result covers only the starter records shown.'
+              }`
+            : summary.details}
+        </p>
+      )}
+
+      <div className="result-actions">
+        {summary.isPass && reviewerRowsCount === 0 && (
+          <button type="button" className="btn primary" onClick={onTestAnotherBooking}>
+            <Plus size={16} />
+            Test another booking
+          </button>
+        )}
+        {(!summary.isPass || reviewerRowsCount > 0) && (
+          <button type="button" className="btn secondary" onClick={onEditQuery}>
+            <Pencil size={15} />
+            Edit query
+          </button>
+        )}
       </div>
     </div>
   );

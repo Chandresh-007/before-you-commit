@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
-import { ShieldAlert, PlusCircle, Trash2, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react';
-import type { Registration, Scenario } from '../types';
+import React, { useState, useEffect } from 'react';
+import { PlusCircle, Trash2, ChevronDown, ChevronUp, AlertTriangle, FlaskConical, PenTool } from 'lucide-react';
+import type { Registration, ReviewerExercise, Scenario } from '../types';
 
 interface ReviewerSandboxProps {
   scenario: Scenario;
+  currentExercise?: ReviewerExercise;
   reviewerRows: Registration[];
   onAddPreset: () => void;
   onAddCustomRow: (row: Registration) => { success: boolean; error?: string };
@@ -11,33 +12,50 @@ interface ReviewerSandboxProps {
   onClearAll: () => void;
 }
 
+const VALID_STATUSES = ['scheduled', 'confirmed', 'completed', 'cancelled'] as const;
+
 export const ReviewerSandbox: React.FC<ReviewerSandboxProps> = ({
   scenario,
+  currentExercise,
   reviewerRows,
   onAddPreset,
   onAddCustomRow,
   onRemoveRow,
   onClearAll,
 }) => {
+  const currentPreset =
+    currentExercise?.reviewerDefaultPreset ||
+    scenario.reviewerDefaultPreset ||
+    scenario.initialSeedRows[0];
+
   const [showCustomForm, setShowCustomForm] = useState(false);
-  const [customId, setCustomId] = useState('88');
-  const [customStudentId, setCustomStudentId] = useState('STU-402');
-  const [customStudentName, setCustomStudentName] = useState('Ananya Sharma');
-  const [customEvent, setCustomEvent] = useState('Cloud Quest');
-  const [customDate, setCustomDate] = useState('2024-09-20');
-  const [customStatus, setCustomStatus] = useState('completed');
+  const [customId, setCustomId] = useState(String(currentPreset.registration_id + 1));
+  const [customStudentId, setCustomStudentId] = useState('');
+  const [customStudentName, setCustomStudentName] = useState('');
+  const [customEvent, setCustomEvent] = useState('');
+  const [customDate, setCustomDate] = useState('');
+  const [customStatus, setCustomStatus] = useState<string>(currentPreset.status);
   const [formError, setFormError] = useState<string | null>(null);
 
+  useEffect(() => {
+    setCustomId(String(currentPreset.registration_id + 1));
+    setCustomStudentId('');
+    setCustomStudentName('');
+    setCustomEvent('');
+    setCustomDate('');
+    setCustomStatus(currentPreset.status);
+  }, [currentPreset]);
+
   const isPresetActive = reviewerRows.some(
-    (r) => r.registration_id === scenario.reviewerDefaultPreset.registration_id
+    (r) => r.registration_id === currentPreset.registration_id
   );
 
   const handleCustomSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
 
-    const regId = parseInt(customId, 10);
-    if (isNaN(regId) || regId <= 0) {
+    const regId = Number(customId);
+    if (!Number.isSafeInteger(regId) || regId <= 0) {
       setFormError('Registration ID must be a positive integer.');
       return;
     }
@@ -54,161 +72,202 @@ export const ReviewerSandbox: React.FC<ReviewerSandboxProps> = ({
       event_name: customEvent.trim(),
       session_date: customDate.trim(),
       status: customStatus,
+      reviewerSource: 'custom',
     });
 
     if (!result.success) {
       setFormError(result.error || 'Failed to add row.');
     } else {
-      // Advance suggested ID for next addition
       setCustomId(String(regId + 1));
       setShowCustomForm(false);
+      setCustomStudentId('');
+      setCustomStudentName('');
+      setCustomEvent('');
+      setCustomDate('');
     }
   };
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-lg space-y-0">
-      {/* Sandbox Header */}
-      <div className="border-b border-slate-800 bg-slate-950/70 px-4 py-2.5 flex items-center justify-between flex-wrap gap-2">
+    <div id="reviewer-panel" className="bg-surface border border-border rounded-xl overflow-hidden">
+      {/* Header */}
+      <div className="border-b border-border bg-surface-alt px-4 py-2.5 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <ShieldAlert className="w-4 h-4 text-amber-400" />
-          <span className="text-xs font-bold text-slate-200 uppercase tracking-wider">
-            Reviewer Edge-Case Sandbox
-          </span>
-          <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/30">
-            {reviewerRows.length} Edge Case{reviewerRows.length === 1 ? '' : 's'} Active
-          </span>
+          <FlaskConical className="w-4 h-4 text-teal-600" />
+          <h3 id="reviewer-heading" tabIndex={-1} className="text-sm font-semibold text-ink outline-none">
+            Test another booking
+          </h3>
+          {reviewerRows.length > 0 && (
+            <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-teal-50 text-teal-700 border border-teal-200">
+              {reviewerRows.length} edge-case row{reviewerRows.length !== 1 ? 's' : ''}
+            </span>
+          )}
         </div>
-
         {reviewerRows.length > 0 && (
           <button
             type="button"
             onClick={onClearAll}
-            className="text-xs text-rose-400 hover:text-rose-300 hover:underline flex items-center gap-1 cursor-pointer"
+            className="text-xs text-ink-muted hover:text-danger transition-colors cursor-pointer"
           >
-            Clear edge cases
+            Clear all
           </button>
         )}
       </div>
 
       <div className="p-4 space-y-3">
-        <p className="text-xs text-slate-300 leading-relaxed m-0">
-          Act as a skeptical code reviewer. Inject realistic database states to verify whether the developer’s
-          query accidentally updates rows beyond the ticket’s intended scope.
+        <p className="text-sm text-ink-muted m-0 leading-relaxed">
+          Can you add a booking that tests whether this query restricts its scope properly? Create your own test booking, or use the supplied example.
         </p>
 
-        {/* Action Preset Buttons */}
+        {/* Action buttons */}
         <div className="flex flex-wrap gap-2 pt-1">
+          <button
+            type="button"
+            aria-expanded={showCustomForm}
+            aria-controls="custom-booking-form"
+            onClick={() => setShowCustomForm(!showCustomForm)}
+            className={`px-3 py-2 rounded-lg text-sm font-semibold flex items-center gap-1.5 transition-colors cursor-pointer ${
+              showCustomForm
+                ? 'bg-ink text-white'
+                : 'bg-surface-alt hover:bg-canvas text-ink-secondary border border-border'
+            }`}
+          >
+            <PenTool className="w-3.5 h-3.5" />
+            <span>{showCustomForm ? 'Close form' : 'Create my own booking'}</span>
+            {showCustomForm ? <ChevronUp className="w-3 h-3 ml-0.5" /> : <ChevronDown className="w-3 h-3 ml-0.5" />}
+          </button>
+
           <button
             type="button"
             onClick={onAddPreset}
             disabled={isPresetActive}
-            className={`px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
+            className={`px-3 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-colors cursor-pointer ${
               isPresetActive
-                ? 'bg-amber-950/40 text-amber-400 border border-amber-800/60 opacity-60 cursor-not-allowed'
-                : 'bg-amber-600 hover:bg-amber-500 text-white shadow-md shadow-amber-600/30'
+                ? 'bg-surface-alt text-ink-muted border border-border cursor-not-allowed'
+                : 'bg-teal-600 hover:bg-teal-700 text-white shadow-sm'
             }`}
-            title="Inject Ananya's completed October attendance (#87) into the database"
+            title={`Add preset row: ${currentPreset.student_name} #${currentPreset.registration_id}`}
           >
             <PlusCircle className="w-3.5 h-3.5" />
             <span>
-              {isPresetActive ? '✓ October Row #87 Injected' : '+ Add Previous Attendance (Oct 18 · #87)'}
+              {isPresetActive ? `Added: #${currentPreset.registration_id}` : 'Use supplied example'}
             </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setShowCustomForm(!showCustomForm)}
-            className="px-3 py-2 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors flex items-center gap-1.5 cursor-pointer"
-          >
-            <span>{showCustomForm ? 'Close Custom Form' : '+ Add Custom Registration Row'}</span>
-            {showCustomForm ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
           </button>
         </div>
 
-        {/* Custom Row Form (Phase 2) */}
+        {/* Custom form */}
         {showCustomForm && (
           <form
+            id="custom-booking-form"
             onSubmit={handleCustomSubmit}
-            className="bg-slate-950/80 border border-slate-800 p-3.5 rounded-lg space-y-3 mt-2 text-xs"
+            className="bg-surface-alt border border-border p-3.5 rounded-lg space-y-3 text-sm mt-2"
           >
-            <div className="font-semibold text-slate-200 flex items-center justify-between">
-              <span>Insert Custom Edge-Case Record</span>
-              <span className="text-[11px] text-slate-400 font-normal">Validated against table schema</span>
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-xs text-ink uppercase tracking-wide">
+                Custom Test Booking
+              </span>
+              <span className="text-xs text-ink-muted">
+                Pick non-colliding ID and valid columns
+              </span>
             </div>
 
             {formError && (
-              <div className="flex items-center gap-1.5 text-xs text-rose-300 bg-rose-950/50 border border-rose-800/80 p-2 rounded">
+              <div className="p-2 rounded bg-danger-bg border border-danger-border text-danger flex items-center gap-1.5 text-xs">
                 <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
-                <span>{formError}</span>
+                <span role="alert">{formError}</span>
               </div>
             )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <div>
-                <label className="block text-[11px] text-slate-400 mb-1">Registration ID (PK)</label>
+                <label htmlFor="registration-id" className="block text-xs font-medium text-ink-secondary mb-1">
+                  Registration ID (Primary Key)
+                </label>
                 <input
                   type="number"
+                  id="registration-id"
                   value={customId}
                   onChange={(e) => setCustomId(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-slate-200 font-mono"
+                  placeholder="e.g. 188 or 210"
+                  className="w-full bg-canvas border border-border rounded px-2.5 py-1.5 text-ink font-mono text-xs focus:outline-none focus:ring-2 focus:ring-teal-600"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-[11px] text-slate-400 mb-1">Student ID</label>
+                <label htmlFor="student-id" className="block text-xs font-medium text-ink-secondary mb-1">
+                  Student ID
+                </label>
                 <input
                   type="text"
+                  id="student-id"
                   value={customStudentId}
                   onChange={(e) => setCustomStudentId(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-slate-200 font-mono"
+                  placeholder="e.g. STU-404 or STU-102"
+                  className="w-full bg-canvas border border-border rounded px-2.5 py-1.5 text-ink font-mono text-xs focus:outline-none focus:ring-2 focus:ring-teal-600"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-[11px] text-slate-400 mb-1">Student Name</label>
+                <label htmlFor="student-name" className="block text-xs font-medium text-ink-secondary mb-1">
+                  Student Name
+                </label>
                 <input
                   type="text"
+                  id="student-name"
                   value={customStudentName}
                   onChange={(e) => setCustomStudentName(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-slate-200"
+                  placeholder="e.g. Aarav Patel"
+                  className="w-full bg-canvas border border-border rounded px-2.5 py-1.5 text-ink text-xs focus:outline-none focus:ring-2 focus:ring-teal-600"
+                  required
                 />
               </div>
 
               <div>
-                <label className="block text-[11px] text-slate-400 mb-1">Event Name</label>
+                <label htmlFor="event-name" className="block text-xs font-medium text-ink-secondary mb-1">
+                  Event / Company Name
+                </label>
                 <input
                   type="text"
+                  id="event-name"
                   value={customEvent}
                   onChange={(e) => setCustomEvent(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-slate-200"
+                  placeholder="e.g. Facebook Interview"
+                  className="w-full bg-canvas border border-border rounded px-2.5 py-1.5 text-ink text-xs focus:outline-none focus:ring-2 focus:ring-teal-600"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-[11px] text-slate-400 mb-1">Session Date (YYYY-MM-DD)</label>
+                <label htmlFor="session-date" className="block text-xs font-medium text-ink-secondary mb-1">
+                  Session Date & Time
+                </label>
                 <input
-                  type="date"
+                  type="text"
+                  id="session-date"
                   value={customDate}
                   onChange={(e) => setCustomDate(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-slate-200 font-mono"
+                  placeholder="YYYY-MM-DD HH:MM (e.g. 2024-11-25 14:00)"
+                  className="w-full bg-canvas border border-border rounded px-2.5 py-1.5 text-ink font-mono text-xs focus:outline-none focus:ring-2 focus:ring-teal-600"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-[11px] text-slate-400 mb-1">Initial Status</label>
+                <label htmlFor="custom-status" className="block text-xs font-medium text-ink-secondary mb-1">
+                  Initial Status
+                </label>
                 <select
+                  id="custom-status"
                   value={customStatus}
                   onChange={(e) => setCustomStatus(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-slate-200"
+                  className="w-full bg-canvas border border-border rounded px-2.5 py-1.5 text-ink text-xs focus:outline-none focus:ring-2 focus:ring-teal-600 font-mono"
                 >
-                  <option value="completed">completed</option>
-                  <option value="registered">registered</option>
-                  <option value="waitlist">waitlist</option>
-                  <option value="cancelled">cancelled</option>
+                  {VALID_STATUSES.map((status) => (
+                    <option key={status} value={status}>
+                      {status}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -217,52 +276,58 @@ export const ReviewerSandbox: React.FC<ReviewerSandboxProps> = ({
               <button
                 type="button"
                 onClick={() => setShowCustomForm(false)}
-                className="px-3 py-1.5 rounded bg-slate-800 text-slate-300 hover:bg-slate-700"
+                className="px-2.5 py-1 rounded text-xs text-ink-muted hover:text-ink cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="px-4 py-1.5 rounded bg-indigo-600 hover:bg-indigo-500 font-semibold text-white shadow cursor-pointer"
+                className="btn primary text-xs py-1 px-3 shadow-sm"
               >
-                Add Row to Table
+                Add test booking
               </button>
             </div>
           </form>
         )}
 
-        {/* Active Injected Rows List */}
+        {/* List of active reviewer rows */}
         {reviewerRows.length > 0 && (
-          <div className="space-y-1.5 pt-1">
-            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">
-              Injected Reviewer Rows:
+          <div className="space-y-2 pt-2 border-t border-border">
+            <span className="text-xs font-semibold text-ink-secondary block">
+              Active Reviewer Test Bookings ({reviewerRows.length})
             </span>
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               {reviewerRows.map((row) => (
                 <div
                   key={row.registration_id}
-                  className="flex items-center justify-between text-xs bg-slate-950/60 border border-amber-900/40 p-2 rounded-lg"
+                  className="flex items-center justify-between p-2 rounded-lg bg-surface-alt border border-border text-xs"
                 >
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono font-bold text-amber-400 bg-amber-950/50 border border-amber-800 px-1.5 py-0.5 rounded text-[11px]">
-                      #{row.registration_id}
-                    </span>
-                    <span className="text-slate-200 font-medium">{row.student_name}</span>
-                    <span className="text-slate-400 font-mono text-[11px]">({row.student_id})</span>
-                    <span className="text-slate-400">· {row.event_name}</span>
-                    <span className="text-slate-400 font-mono text-[11px]">({row.session_date})</span>
-                    <span className="text-slate-300 font-mono px-1 rounded bg-slate-800 text-[11px]">
-                      {row.status}
-                    </span>
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-semibold text-ink">{row.student_name}</span>
+                      <span className="font-mono text-ink-muted">#{row.registration_id}</span>
+                      <span
+                        className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded ${
+                          row.reviewerSource === 'custom'
+                            ? 'bg-slate-100 text-slate-700 border border-slate-200'
+                            : 'bg-teal-50 text-teal-700 border border-teal-200'
+                        }`}
+                      >
+                        {row.reviewerSource === 'custom' ? 'Custom booking' : 'Supplied example'}
+                      </span>
+                    </div>
+                    <div className="text-ink-muted text-[11px]">
+                      {row.event_name} · {row.session_date} · <span className="font-mono text-ink-secondary">{row.status}</span>
+                    </div>
                   </div>
-
                   <button
                     type="button"
                     onClick={() => onRemoveRow(row.registration_id)}
-                    className="text-slate-500 hover:text-rose-400 p-1 rounded transition-colors cursor-pointer"
-                    title="Remove this reviewer row"
+                    className="p-1 text-ink-muted hover:text-danger rounded transition-colors cursor-pointer"
+                    title={`Remove booking #${row.registration_id}`}
+                    aria-label={`Remove booking #${row.registration_id}`}
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
+                    <Trash2 size={13} />
                   </button>
                 </div>
               ))}

@@ -1,207 +1,234 @@
 import React from 'react';
-import { Check, AlertTriangle, ArrowRight, XCircle, ShieldCheck, HelpCircle } from 'lucide-react';
-import type { ChangeClassification, DiffReport, RowDiff } from '../types';
+import { Check, AlertTriangle, Database, ShieldCheck } from 'lucide-react';
+import type { DiffReport, Registration, ReviewerExercise, RowDiff, Scenario } from '../types';
+import { bookingTime } from './bookingDisplay';
 
-interface DiffTableProps {
+interface Props {
   report: DiffReport | null;
+  scenario: Scenario;
+  currentExercise?: ReviewerExercise;
+  reviewerRowsCount: number;
+  reviewerRows?: Registration[];
   projectorMode: boolean;
 }
 
-const classificationBadge = (classification: ChangeClassification) => {
-  switch (classification) {
-    case 'intended':
-      return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/50">
-          <Check className="w-3.5 h-3.5" />
-          <span>INTENDED CHANGE</span>
-        </span>
-      );
-    case 'unintended':
-      return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-extrabold bg-rose-600/30 text-rose-300 border-2 border-rose-500 animate-pulse">
-          <AlertTriangle className="w-3.5 h-3.5 text-rose-400" />
-          <span>UNINTENDED CHANGE</span>
-        </span>
-      );
-    case 'missed':
-      return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/50">
-          <XCircle className="w-3.5 h-3.5" />
-          <span>MISSED (NO CHANGE)</span>
-        </span>
-      );
-    case 'wrong_value':
-      return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-bold bg-purple-500/20 text-purple-300 border border-purple-500/50">
-          <AlertTriangle className="w-3.5 h-3.5" />
-          <span>WRONG STATUS</span>
-        </span>
-      );
-    case 'unchanged':
-    default:
-      return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-slate-800 text-slate-400 border border-slate-700">
-          <ShieldCheck className="w-3 h-3 text-slate-500" />
-          <span>UNCHANGED (OK)</span>
-        </span>
-      );
-  }
+const labels: Record<string, string> = {
+  intended: 'Requested change',
+  unintended: 'Outside the ticket',
+  missed: 'Target missed',
+  wrong_value: 'Wrong status',
+  unchanged: 'Preserved',
 };
 
-export const DiffTable: React.FC<DiffTableProps> = ({ report, projectorMode }) => {
-  if (!report) {
-    return (
-      <div className="bg-slate-900 border border-slate-800 rounded-xl p-8 text-center text-slate-500 space-y-2">
-        <p className="text-sm font-medium m-0">No query preview executed yet.</p>
-        <p className="text-xs text-slate-600 m-0">
-          Write or inspect your SQL statement and click "Preview Change" to run dry-run diff analysis.
-        </p>
-      </div>
-    );
-  }
-
-  const { rows, summary } = report;
+function RecordCard({
+  row,
+  isReviewerRow,
+}: {
+  row: RowDiff;
+  isReviewerRow?: boolean;
+}) {
+  const isChanged = row.changedColumns.includes('status');
+  const isPreserved = row.classification === 'unchanged' && isReviewerRow;
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-xl space-y-0">
-      {/* Table Header Controls */}
-      <div className="border-b border-slate-800 bg-slate-950/70 px-4 py-3 flex items-center justify-between flex-wrap gap-2">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-bold text-slate-200 uppercase tracking-wider">
-            Live Database Row Diff (Table: registrations)
-          </span>
-          <span className="text-[11px] font-mono text-slate-400">
-            ({rows.length} total rows evaluated)
-          </span>
-        </div>
-
-        <div className="text-xs text-slate-400">
-          Primary Key: <code className="text-indigo-400 font-mono">registration_id</code>
-        </div>
-      </div>
-
-      {/* Responsive Table */}
-      <div className="overflow-x-auto">
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="border-b border-slate-800 bg-slate-950/90 text-slate-400 text-xs uppercase font-semibold">
-              <th className="py-2.5 px-3 font-mono">Reg ID (PK)</th>
-              <th className="py-2.5 px-3">Student Name (ID)</th>
-              <th className="py-2.5 px-3">Event Name</th>
-              <th className="py-2.5 px-3 font-mono">Date</th>
-              <th className="py-2.5 px-3">Before Status</th>
-              <th className="py-2.5 px-3">After Status</th>
-              <th className="py-2.5 px-3">Review Classification</th>
-            </tr>
-          </thead>
-          <tbody className={`divide-y divide-slate-800/80 ${projectorMode ? 'text-sm' : 'text-xs'}`}>
-            {rows.map((rowDiff: RowDiff) => {
-              const { registration_id, before, after, classification, changedColumns } = rowDiff;
-              const hasStatusChanged = changedColumns.includes('status');
-
-              let rowBg = 'hover:bg-slate-800/40';
-              if (classification === 'unintended') {
-                rowBg = 'bg-rose-950/40 hover:bg-rose-950/60 font-semibold';
-              } else if (classification === 'intended') {
-                rowBg = 'bg-emerald-950/20 hover:bg-emerald-950/30';
-              } else if (classification === 'wrong_value') {
-                rowBg = 'bg-purple-950/20 hover:bg-purple-950/30';
-              }
-
-              return (
-                <tr key={registration_id} className={`transition-colors ${rowBg}`}>
-                  {/* Reg ID */}
-                  <td className="py-3 px-3 font-mono font-bold text-slate-300">
-                    #{registration_id}
-                  </td>
-
-                  {/* Student */}
-                  <td className="py-3 px-3 text-slate-200">
-                    <div>{before.student_name}</div>
-                    <div className="font-mono text-[11px] text-slate-400">{before.student_id}</div>
-                  </td>
-
-                  {/* Event */}
-                  <td className="py-3 px-3 text-slate-300">{before.event_name}</td>
-
-                  {/* Session Date */}
-                  <td className="py-3 px-3 font-mono text-slate-300">{before.session_date}</td>
-
-                  {/* Before Status */}
-                  <td className="py-3 px-3">
-                    <span
-                      className={`font-mono px-2 py-0.5 rounded border ${
-                        before.status === 'completed'
-                          ? 'bg-cyan-950/50 text-cyan-300 border-cyan-800/60'
-                          : before.status === 'registered'
-                          ? 'bg-blue-950/50 text-blue-300 border-blue-800/60'
-                          : 'bg-slate-800 text-slate-300 border-slate-700'
-                      }`}
-                    >
-                      {before.status}
-                    </span>
-                  </td>
-
-                  {/* After Status */}
-                  <td className="py-3 px-3">
-                    {hasStatusChanged ? (
-                      <div className="flex items-center gap-1.5 font-mono">
-                        <span className="line-through text-slate-500">{before.status}</span>
-                        <ArrowRight className="w-3.5 h-3.5 text-slate-400" />
-                        <span
-                          className={`font-bold px-2 py-0.5 rounded border ${
-                            classification === 'unintended'
-                              ? 'bg-rose-950 text-rose-200 border-rose-500 font-extrabold ring-1 ring-rose-500'
-                              : classification === 'intended'
-                              ? 'bg-emerald-950 text-emerald-200 border-emerald-500'
-                              : 'bg-purple-950 text-purple-200 border-purple-500'
-                          }`}
-                        >
-                          {after.status}
-                        </span>
-                      </div>
-                    ) : (
-                      <span className="font-mono text-slate-400 px-2 py-0.5 rounded bg-slate-800/50">
-                        {after.status} (no change)
-                      </span>
-                    )}
-                  </td>
-
-                  {/* Classification Badge */}
-                  <td className="py-3 px-3">{classificationBadge(classification)}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Classroom Pedagogical Explanation Box */}
-      <div className="p-4 bg-slate-950 border-t border-slate-800 flex items-start gap-3 text-xs leading-relaxed">
-        <HelpCircle className="w-4 h-4 text-indigo-400 flex-shrink-0 mt-0.5" />
-        <div className="space-y-1">
-          <span className="font-bold text-slate-200">Classroom Lesson — Why This Happens:</span>
-          {summary.unintendedCount > 0 ? (
-            <p className="text-slate-300 m-0">
-              The query used <code className="text-rose-300 font-mono">WHERE student_id = 'STU-402'</code>. In
-              relational database design, <code className="font-mono">student_id</code> is a domain identifier,
-              not the primary key of this table. Because Ananya has multiple registrations across different dates,
-              updating by student ID unconditionally overwrote her completed October record (<code className="font-mono">#87</code>).
-              To make SQL safe against regressions, target the candidate primary key{' '}
-              <code className="text-emerald-400 font-mono">registration_id = 104</code> or include the date predicate.
-            </p>
-          ) : summary.isPass ? (
-            <p className="text-slate-300 m-0">
-              Targeting <code className="text-emerald-400 font-mono">WHERE registration_id = 104</code> adheres to
-              defensive SQL principles. It guarantees exact single-row granularity, preventing side-effects on prior or future student activity.
-            </p>
+    <article
+      className={`record-card record-${row.classification} ${
+        isPreserved ? 'record-preserved' : ''
+      }`}
+    >
+      <div className="record-top">
+        <span className="record-person">
+          {row.before.student_name}{' '}
+          <span className="record-id font-mono">#{row.registration_id}</span>
+        </span>
+        <span
+          className={`record-label ${
+            row.classification === 'intended' || isPreserved
+              ? 'label-success'
+              : row.classification === 'unintended'
+              ? 'label-danger'
+              : 'label-warning'
+          }`}
+        >
+          {isPreserved ? (
+            <>
+              <ShieldCheck size={14} />
+              <span>Preserved · {row.before.status}</span>
+            </>
+          ) : row.classification === 'intended' ? (
+            <>
+              <Check size={14} />
+              <span>{labels[row.classification]}</span>
+            </>
+          ) : row.classification === 'unchanged' ? (
+            <>
+              <Check size={14} />
+              <span>Preserved</span>
+            </>
           ) : (
-            <p className="text-slate-400 m-0">
-              Inspect the table diff above to ensure only the target ticket record is modified.
-            </p>
+            <>
+              <AlertTriangle size={14} />
+              <span>{labels[row.classification]}</span>
+            </>
+          )}
+        </span>
+      </div>
+
+      <div className="record-main">
+        <strong className="record-event">{row.before.event_name}</strong>
+        <span className="record-date">{bookingTime(row.before.session_date)}</span>
+      </div>
+
+      <div className="record-bottom">
+        <div className="status-transition">
+          {isPreserved ? (
+            <span className="status-badge status-preserved">
+              {row.before.status} <span className="status-sub">· unchanged</span>
+            </span>
+          ) : isChanged ? (
+            <>
+              <span className="status-badge before">{row.before.status}</span>
+              <span className="arrow" aria-label="changed to">
+                →
+              </span>
+              <b
+                className={`status-badge ${
+                  row.classification === 'intended' ? 'after-intended' : 'after-wrong'
+                }`}
+              >
+                {row.after.status}
+              </b>
+            </>
+          ) : (
+            <span className="status-badge before">
+              {row.before.status} <span className="status-sub">· unchanged</span>
+            </span>
           )}
         </div>
+        <span className="record-id font-mono text-xs">{row.before.student_id}</span>
       </div>
-    </div>
+
+      {(row.classification === 'missed' || row.classification === 'wrong_value') && (
+        <p className="record-note">Ticket requires: {row.expected.status}</p>
+      )}
+      {row.classification === 'unintended' && (
+        <p className="record-note text-danger font-medium">
+          Outside the ticket — this booking should stay {row.before.status}.
+        </p>
+      )}
+    </article>
+  );
+}
+
+export const DiffTable: React.FC<Props> = ({
+  report,
+  scenario,
+  reviewerRows = [],
+  reviewerRowsCount,
+}) => {
+  const reviewerIds = new Set(reviewerRows.map((r) => r.registration_id));
+  const startingRows = [...scenario.initialSeedRows, ...reviewerRows];
+
+  // Important rows to show immediately (mutated rows + added reviewer rows)
+  const important =
+    report?.rows.filter(
+      (r) => r.classification !== 'unchanged' || reviewerIds.has(r.registration_id)
+    ) || [];
+
+  // Control/unmodified records from starter data to collapse
+  const unchanged =
+    report?.rows.filter(
+      (r) => r.classification === 'unchanged' && !reviewerIds.has(r.registration_id)
+    ) || [];
+
+  return (
+    <section className="evidence-panel" aria-label="Booking evidence">
+      <div className="panel-heading">
+        <div className="flex items-center gap-2">
+          <Database size={16} className="text-teal-600" />
+          <h3>{report ? 'Booking evidence & diff' : 'Starting records'}</h3>
+        </div>
+        <span className="text-xs text-ink-muted">{startingRows.length} total records</span>
+      </div>
+
+      {report && (
+        <div className="record-list" aria-label="Active diff records">
+          {important.map((row) => (
+            <RecordCard
+              key={row.registration_id}
+              row={row}
+              isReviewerRow={reviewerIds.has(row.registration_id)}
+            />
+          ))}
+        </div>
+      )}
+
+      {report && unchanged.length > 0 && (
+        <details className="records-disclosure">
+          <summary>Show {unchanged.length} unchanged records</summary>
+          <div className="record-list">
+            {unchanged.map((row) => (
+              <RecordCard key={row.registration_id} row={row} />
+            ))}
+          </div>
+        </details>
+      )}
+
+      <details className="records-disclosure dataset" open={!report}>
+        <summary>
+          {report ? 'Inspect complete starting dataset' : 'registrations · all columns'}
+        </summary>
+        <div className="dataset-scroll" tabIndex={0} role="region" aria-label="Complete starting dataset">
+          <table>
+            <thead>
+              <tr>
+                {[
+                  'registration_id',
+                  'student_id',
+                  'student_name',
+                  'event_name',
+                  'session_date',
+                  'status',
+                ].map((key) => (
+                  <th key={key} scope="col">
+                    {key}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {startingRows.map((row) => (
+                <tr key={row.registration_id}>
+                  <td>
+                    <span className="font-mono">{row.registration_id}</span>
+                  </td>
+                  <td>
+                    <span className="font-mono">{row.student_id}</span>
+                  </td>
+                  <td>{row.student_name}</td>
+                  <td>{row.event_name}</td>
+                  <td>
+                    <span className="font-mono">{row.session_date}</span>
+                  </td>
+                  <td>
+                    <span className="status-pill">{row.status}</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </details>
+
+      {report && (
+        <p className="evidence-note">
+          {report.summary.isPass
+            ? reviewerRowsCount > 0
+              ? 'The query successfully satisfies the ticket and preserves all reviewer bookings.'
+              : 'A passing preview on starter data only proves the query works on the records shown.'
+            : 'Compare the affected bookings with the ticket, then adjust the WHERE clause and preview again.'}
+        </p>
+      )}
+    </section>
   );
 };
